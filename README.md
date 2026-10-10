@@ -1,30 +1,48 @@
-# Project Template
+# niri-helper
 
-This is a basic project template repository to kickstart new projects with consistent configuration.
+A personal long-running CLI helper for the [niri](https://github.com/niri-wm/niri)
+scrollable-tiling Wayland compositor. It connects to niri over IPC using the
+[`niri_ipc`](https://crates.io/crates/niri_ipc) crate and runs continuously,
+reacting to the compositor as you work.
 
-## Included Configuration
+## Features
 
-- **.editorconfig**: Ensures consistent coding styles across different editors and IDEs
-  - UTF-8 charset
-  - Unix-style line endings (LF)
-  - Automatic final newline insertion
+- **Sticky window** — keeps a window pinned/visible as you navigate niri. (Currently the only helper.)
 
-- **LICENSE**: Apache 2.0 License (Copyright 2025 Linnovs)
+## How It Works
 
-## Getting Started
+The binary is a daemon. On startup it connects to niri's IPC socket with
+`niri_ipc::Socket::connect()`, subscribes to compositor events, and issues
+actions (via `niri_ipc::Request`) in response. It is meant to keep running for
+the whole session.
 
-1. Use this repository as a template to create a new project:
-   ```
-   git clone https://github.com/yourusername/template.git your-new-project
-   cd your-new-project
-   ```
+## Requirements
 
-2. Remove or replace template files with your project files.
+- A running niri session (exposes `NIRI_SOCKET`).
+- A Rust toolchain (stable).
 
-3. Update the LICENSE and README as needed for your project.
+## Build
 
-4. Start building your project!
+```sh
+cargo build --release
+```
+
+## Run
+
+```sh
+cargo run --release
+# or the built binary
+./target/release/niri-helper
+```
+
+### Start with Niri
+
+Add to your `niri` configuration (`~/.config/niri/config.kdl`):
+
+```kdl
+spawn-at-startup "niri-helper"
+```
 
 ## License
 
-This template is licensed under the Apache License 2.0. See the LICENSE file for details.
+Licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
