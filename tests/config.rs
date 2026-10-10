@@ -248,6 +248,49 @@ fn rules_parse_and_match_by_app_id_and_title() {
 }
 
 #[test]
+fn rules_parse_size_and_position() {
+    let _guard = lock();
+    let dir = temp_dir("rules-size-pos");
+    set_env("XDG_CONFIG_HOME", &dir);
+    remove_env("HOME");
+    write_config(
+        &dir,
+        "[[rules]]\napp_id = \"^mpv$\"\ntitle = \".*\"\nsize = { width = 800, height = 600 }\nposition = { x = 100.0, y = \"50%\" }\n",
+    );
+
+    let data = ConfigData::load().unwrap();
+    let rule = &data.rule_matchers[0];
+    assert!(rule.matches(Some("mpv"), Some("anything")));
+
+    let size = rule.size().unwrap();
+    assert_eq!(size.width, 800);
+    assert_eq!(size.height, 600);
+
+    let (x, y) = rule.position().unwrap().changes();
+    assert_eq!(x, niri_ipc::PositionChange::SetFixed(100.0));
+    assert_eq!(y, niri_ipc::PositionChange::SetProportion(0.5));
+
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn rules_reject_invalid_position() {
+    let _guard = lock();
+    let dir = temp_dir("rules-bad-pos");
+    set_env("XDG_CONFIG_HOME", &dir);
+    remove_env("HOME");
+    write_config(
+        &dir,
+        "[[rules]]\napp_id = \"^mpv$\"\ntitle = \".*\"\nposition = { x = \"abc\", y = 0 }\n",
+    );
+
+    let err = ConfigData::load().unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
 fn rules_reject_invalid_regex() {
     let _guard = lock();
     let dir = temp_dir("rules-bad");

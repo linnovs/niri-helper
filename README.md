@@ -53,8 +53,10 @@ defaults are used.
 app_id = ["^org\\.mozilla\\.Firefox$"]
 
 [[rules]]
-app_id = "^mpv$"          # regex matching the window's app_id
-title = ".*"              # regex matching the window's title
+app_id = "^mpv$"                             # regex matching the window's app_id
+title = ".*"                                 # regex matching the window's title
+size = { width = 800, height = 600 }         # optional, logical pixels
+position = { x = 100, y = "50%" }            # optional; "50%" = working-area proportion
 
 [scratchpad]
 workspace = "scratch"            # optional, defaults to "scratch"
@@ -72,7 +74,9 @@ executable = "feh"
   a window's `app_id`.
 - `rules` is an array of `{ app_id, title }` regex pairs; the daemon floats a
   newly opened window when both regexes match (AND within a rule, OR across
-  rules).
+  rules). Optional `size` and `position` are applied when the window is floated:
+  `size` is absolute logical pixels; `position` accepts absolute pixels or
+  `"NN%"` proportions of the working area.
 - `scratch <name>` looks up the application in `scratchpad.applications`; errors
   out if the name is unknown.
 - Invalid TOML or a bad regex is a fatal config error.

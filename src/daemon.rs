@@ -2,7 +2,7 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
-use niri_ipc::{Action, Event, Request, Response, Window, WorkspaceReferenceArg};
+use niri_ipc::{Action, Event, Request, Response, SizeChange, Window, WorkspaceReferenceArg};
 use regex::Regex;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::UnixStream;
@@ -147,9 +147,9 @@ pub async fn run() -> std::io::Result<()> {
             };
             if (is_new || title_or_app_id_changed)
                 && !window.is_floating
-                && rule_matchers
+                && let Some(rule) = rule_matchers
                     .iter()
-                    .any(|r| r.matches(window.app_id.as_deref(), window.title.as_deref()))
+                    .find(|r| r.matches(window.app_id.as_deref(), window.title.as_deref()))
             {
                 action(
                     &mut actions,
@@ -158,6 +158,36 @@ pub async fn run() -> std::io::Result<()> {
                     },
                 )
                 .await?;
+                if let Some(size) = rule.size() {
+                    action(
+                        &mut actions,
+                        Action::SetWindowWidth {
+                            id: Some(window.id),
+                            change: SizeChange::SetFixed(size.width),
+                        },
+                    )
+                    .await?;
+                    action(
+                        &mut actions,
+                        Action::SetWindowHeight {
+                            id: Some(window.id),
+                            change: SizeChange::SetFixed(size.height),
+                        },
+                    )
+                    .await?;
+                }
+                if let Some(position) = rule.position() {
+                    let (x, y) = position.changes();
+                    action(
+                        &mut actions,
+                        Action::MoveFloatingWindow {
+                            id: Some(window.id),
+                            x,
+                            y,
+                        },
+                    )
+                    .await?;
+                }
                 logger.info(format_args!("floated window {} matching a rule", window.id));
             }
             if is_new {

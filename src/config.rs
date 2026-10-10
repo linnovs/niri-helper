@@ -25,6 +25,65 @@ pub struct Pin {
 pub struct Rule {
     pub app_id: String,
     pub title: String,
+    pub size: Option<Size>,
+    pub position: Option<Position>,
+}
+
+/// Optional absolute window size, in logical pixels.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Size {
+    pub width: i32,
+    pub height: i32,
+}
+
+/// Optional window position. Each axis is either an absolute offset in logical
+/// pixels (e.g. `100`) or a percentage of the working area (e.g. `"50%"`).
+#[derive(Debug, Clone, Deserialize)]
+pub struct Position {
+    pub x: PositionValue,
+    pub y: PositionValue,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PositionValue {
+    Fixed(f64),
+    Proportion(f64),
+}
+
+impl<'de> serde::Deserialize<'de> for PositionValue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let value = toml::Value::deserialize(deserializer)?;
+        match value {
+            toml::Value::Integer(i) => Ok(PositionValue::Fixed(i as f64)),
+            toml::Value::Float(f) => Ok(PositionValue::Fixed(f)),
+            toml::Value::String(s) => {
+                if let Some(percent) = s.strip_suffix('%') {
+                    let value: f64 = percent.trim().parse().map_err(D::Error::custom)?;
+                    Ok(PositionValue::Proportion(value))
+                } else {
+                    let value: f64 = s.trim().parse().map_err(D::Error::custom)?;
+                    Ok(PositionValue::Fixed(value))
+                }
+            }
+            other => Err(D::Error::custom(format!(
+                "expected a number or \"NN%\" string, got {other:?}"
+            ))),
+        }
+    }
+}
+
+impl Position {
+    pub fn changes(&self) -> (niri_ipc::PositionChange, niri_ipc::PositionChange) {
+        let to_change = |v: PositionValue| match v {
+            PositionValue::Fixed(px) => niri_ipc::PositionChange::SetFixed(px),
+            PositionValue::Proportion(p) => niri_ipc::PositionChange::SetProportion(p),
+        };
+        (to_change(self.x), to_change(self.y))
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -54,12 +113,22 @@ pub struct Application {
 pub struct CompiledRule {
     app_id: Regex,
     title: Regex,
+    size: Option<Size>,
+    position: Option<Position>,
 }
 
 impl CompiledRule {
     pub fn matches(&self, app_id: Option<&str>, title: Option<&str>) -> bool {
         app_id.is_some_and(|a| self.app_id.is_match(a))
             && title.is_some_and(|t| self.title.is_match(t))
+    }
+
+    pub fn size(&self) -> Option<&Size> {
+        self.size.as_ref()
+    }
+
+    pub fn position(&self) -> Option<&Position> {
+        self.position.as_ref()
     }
 }
 
@@ -136,6 +205,8 @@ impl Config {
                 Ok(CompiledRule {
                     app_id: Regex::new(&r.app_id)?,
                     title: Regex::new(&r.title)?,
+                    size: r.size.clone(),
+                    position: r.position.clone(),
                 })
             })
             .collect()
