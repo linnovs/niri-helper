@@ -18,6 +18,7 @@ Rust (edition 2024) daemon/CLI helper that drives the niri Wayland compositor ov
 ## Config & logging
 - Config: `$XDG_CONFIG_HOME/niri-helper/config.toml` (relative XDG falls back to `~/.config`). Keys:
   - `[pin] app_id = ["<regex>", ...]`
+  - `[[rules]] app_id = "<regex>"` + `title = "<regex>"` — daemon floats newly opened matching windows (AND within a rule)
   - `[scratchpad] workspace = "scratch"` (default), plus `[scratchpad.applications.<name>] app_id = "..."` and `executable = "..."` — dotted keys deserialize into `HashMap<String, Application>`; `app_id`/`executable` required.
 - Log: `$XDG_CACHE_HOME/niri-helper/helper.log` (fallback `~/.cache`), rotated to `helper.log.1` at 1 MiB.
 - Missing config file => defaults; invalid TOML or regex => fatal (nonzero exit).

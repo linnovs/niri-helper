@@ -70,8 +70,8 @@ fn spawn_config_reloader(data: Arc<RwLock<ConfigData>>, logger: Logger) {
             match ConfigData::load() {
                 Ok(new) => {
                     logger.info(format_args!(
-                        "config reloaded: pin.app_id = {:?}, scratchpad.workspace = {}, scratchpad.applications = {:?}",
-                        new.config.pin.app_id, new.config.scratchpad.workspace, new.config.scratchpad.applications
+                        "config reloaded: pin.app_id = {:?}, scratchpad.workspace = {}, scratchpad.applications = {:?}, rules = {:?}",
+                        new.config.pin.app_id, new.config.scratchpad.workspace, new.config.scratchpad.applications, new.config.rules
                     ));
                     *data.write().unwrap() = new;
                 }
@@ -96,6 +96,7 @@ pub async fn run() -> std::io::Result<()> {
             "config: scratchpad.workspace = {}, scratchpad.applications = {:?}",
             config.scratchpad.workspace, config.scratchpad.applications
         ));
+        logger.info(format_args!("config: rules = {:?}", config.rules));
     }
     spawn_config_reloader(Arc::clone(&data), logger.clone());
 
@@ -122,24 +123,53 @@ pub async fn run() -> std::io::Result<()> {
             Event::WorkspaceActivated { id, .. } => Some(*id),
             _ => None,
         };
-        let new_window = match &event {
+        let (is_new, title_or_app_id_changed, window) = match &event {
             Event::WindowOpenedOrChanged { window } => {
-                (!state.windows.windows.contains_key(&window.id)).then(|| window.clone())
+                let is_new = !state.windows.windows.contains_key(&window.id);
+                let changed =
+                    state.windows.windows.get(&window.id).is_some_and(|old| {
+                        old.title != window.title || old.app_id != window.app_id
+                    });
+                (is_new, changed, Some(window.clone()))
             }
-            _ => None,
+            _ => (false, false, None),
         };
         state.apply(event);
 
-        if let Some(window) = &new_window {
-            let (workspace, patterns) = {
+        if let Some(window) = &window {
+            let (workspace, scratchpad_patterns, rule_matchers) = {
                 let data = data.read().unwrap();
                 (
                     data.config.scratchpad.workspace.clone(),
                     data.scratchpad_patterns.clone(),
+                    data.rule_matchers.clone(),
                 )
             };
-            move_new_scratchpad_window(&mut actions, window, &workspace, &patterns, &logger)
+            if (is_new || title_or_app_id_changed)
+                && !window.is_floating
+                && rule_matchers
+                    .iter()
+                    .any(|r| r.matches(window.app_id.as_deref(), window.title.as_deref()))
+            {
+                action(
+                    &mut actions,
+                    Action::MoveWindowToFloating {
+                        id: Some(window.id),
+                    },
+                )
                 .await?;
+                logger.info(format_args!("floated window {} matching a rule", window.id));
+            }
+            if is_new {
+                move_new_scratchpad_window(
+                    &mut actions,
+                    window,
+                    &workspace,
+                    &scratchpad_patterns,
+                    &logger,
+                )
+                .await?;
+            }
         }
 
         if let Some(ws_id) = activated {

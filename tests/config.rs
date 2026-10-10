@@ -216,3 +216,48 @@ fn config_fingerprint_tracks_file_changes() {
 
     fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn rules_parse_and_match_by_app_id_and_title() {
+    let _guard = lock();
+    let dir = temp_dir("rules");
+    set_env("XDG_CONFIG_HOME", &dir);
+    remove_env("HOME");
+    write_config(
+        &dir,
+        "[[rules]]\napp_id = \"^firefox$\"\ntitle = \"^Mozilla$\"\n\n[[rules]]\napp_id = \"^mpv$\"\ntitle = \".*\"\n",
+    );
+
+    let config = Config::load().unwrap();
+    assert_eq!(config.rules.len(), 2);
+
+    let matchers = config.rule_matchers().unwrap();
+    assert_eq!(matchers.len(), 2);
+    // AND within a rule: both app_id and title must match
+    assert!(matchers[0].matches(Some("firefox"), Some("Mozilla")));
+    assert!(!matchers[0].matches(Some("firefox"), Some("Firefox")));
+    assert!(!matchers[0].matches(Some("mpv"), Some("Mozilla")));
+    assert!(!matchers[0].matches(None, Some("Mozilla")));
+    assert!(matchers[1].matches(Some("mpv"), Some("anything")));
+
+    let data = ConfigData::load().unwrap();
+    assert_eq!(data.rule_matchers.len(), 2);
+    assert!(data.rule_matchers[0].matches(Some("firefox"), Some("Mozilla")));
+
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn rules_reject_invalid_regex() {
+    let _guard = lock();
+    let dir = temp_dir("rules-bad");
+    set_env("XDG_CONFIG_HOME", &dir);
+    remove_env("HOME");
+    write_config(&dir, "[[rules]]\napp_id = \"(\"\ntitle = \".*\"\n");
+
+    let err = ConfigData::load().unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    assert!(err.to_string().contains("rules regex"));
+
+    fs::remove_dir_all(&dir).unwrap();
+}

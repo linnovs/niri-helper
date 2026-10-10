@@ -12,12 +12,19 @@ use serde::Deserialize;
 pub struct Config {
     pub pin: Pin,
     pub scratchpad: Scratchpad,
+    pub rules: Vec<Rule>,
 }
 
 #[derive(Debug, Default, Clone, Deserialize)]
 #[serde(default)]
 pub struct Pin {
     pub app_id: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Rule {
+    pub app_id: String,
+    pub title: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -42,12 +49,27 @@ pub struct Application {
     pub executable: String,
 }
 
+/// A compiled rule: both regexes must match for the rule to match a window.
+#[derive(Debug, Clone)]
+pub struct CompiledRule {
+    app_id: Regex,
+    title: Regex,
+}
+
+impl CompiledRule {
+    pub fn matches(&self, app_id: Option<&str>, title: Option<&str>) -> bool {
+        app_id.is_some_and(|a| self.app_id.is_match(a))
+            && title.is_some_and(|t| self.title.is_match(t))
+    }
+}
+
 /// The reloadable subset of the config the daemon operates on.
 #[derive(Debug, Clone)]
 pub struct ConfigData {
     pub config: Config,
     pub pin_patterns: Vec<Regex>,
     pub scratchpad_patterns: Vec<Regex>,
+    pub rule_matchers: Vec<CompiledRule>,
 }
 
 impl ConfigData {
@@ -65,10 +87,17 @@ impl ConfigData {
                 format!("invalid scratchpad application regex: {e}"),
             )
         })?;
+        let rule_matchers = config.rule_matchers().map_err(|e| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("invalid rules regex: {e}"),
+            )
+        })?;
         Ok(Self {
             config,
             pin_patterns,
             scratchpad_patterns,
+            rule_matchers,
         })
     }
 }
@@ -97,6 +126,18 @@ impl Config {
             .applications
             .values()
             .map(|a| Regex::new(&a.app_id))
+            .collect()
+    }
+
+    pub fn rule_matchers(&self) -> Result<Vec<CompiledRule>, regex::Error> {
+        self.rules
+            .iter()
+            .map(|r| {
+                Ok(CompiledRule {
+                    app_id: Regex::new(&r.app_id)?,
+                    title: Regex::new(&r.title)?,
+                })
+            })
             .collect()
     }
 }

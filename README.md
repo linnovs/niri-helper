@@ -11,6 +11,8 @@ applications.
 - **Pin (sticky windows)** — floating windows matching `pin.app_id` are moved to
   the newly active workspace on their monitor, so they stay visible as you
   switch workspaces. Focus is never stolen.
+- **Float rules** — `rules` is an array of `{ app_id, title }` regex pairs; the
+  daemon floats newly opened windows whose `app_id` **and** `title` both match.
 - **Scratchpad** — applications declared under `scratchpad.applications` live on
   the `scratchpad.workspace` workspace. `scratch <name>` brings one to the
   current workspace (or hides it back), spawning it on demand.
@@ -50,6 +52,10 @@ defaults are used.
 [pin]
 app_id = ["^org\\.mozilla\\.Firefox$"]
 
+[[rules]]
+app_id = "^mpv$"          # regex matching the window's app_id
+title = ".*"              # regex matching the window's title
+
 [scratchpad]
 workspace = "scratch"            # optional, defaults to "scratch"
 
@@ -64,6 +70,9 @@ executable = "feh"
 
 - `pin.app_id` and `scratchpad.applications.*.app_id` are regexes matched against
   a window's `app_id`.
+- `rules` is an array of `{ app_id, title }` regex pairs; the daemon floats a
+  newly opened window when both regexes match (AND within a rule, OR across
+  rules).
 - `scratch <name>` looks up the application in `scratchpad.applications`; errors
   out if the name is unknown.
 - Invalid TOML or a bad regex is a fatal config error.
