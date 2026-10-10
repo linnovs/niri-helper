@@ -14,7 +14,7 @@ fn writes_lines_with_timestamp_and_level() {
     set_env("XDG_CACHE_HOME", &dir);
     remove_env("HOME");
 
-    let mut logger = Logger::init().unwrap();
+    let logger = Logger::init().unwrap();
     logger.info(format_args!("hello {}", "world"));
     logger.warn(format_args!("oops"));
 
@@ -45,7 +45,7 @@ fn rotates_to_gover1_when_capacity_reached() {
     let fill = MAX_LOG_SIZE - 1;
     fs::write(&path, vec![b'x'; fill as usize]).unwrap();
 
-    let mut logger = Logger::init().unwrap();
+    let logger = Logger::init().unwrap();
     logger.error(format_args!("this line forces a rotation"));
 
     let rotated = log_dir.join("helper.log.1");
@@ -68,7 +68,7 @@ fn falls_back_to_home_cache() {
     set_env("HOME", &dir);
     set_env("XDG_CACHE_HOME", "relative/path");
 
-    let mut logger = Logger::init().unwrap();
+    let logger = Logger::init().unwrap();
     logger.info(format_args!("hello"));
 
     let path = dir.join(".cache").join("niri-helper").join("helper.log");
@@ -79,6 +79,27 @@ fn falls_back_to_home_cache() {
             .trim_end()
             .ends_with("hello")
     );
+
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn cloned_loggers_share_the_same_file() {
+    let _guard = lock();
+    let dir = temp_dir("log-clone");
+    set_env("XDG_CACHE_HOME", &dir);
+    remove_env("HOME");
+
+    let logger = Logger::init().unwrap();
+    let clone = logger.clone();
+    logger.info(format_args!("first"));
+    clone.warn(format_args!("second"));
+
+    let contents = fs::read_to_string(dir.join("niri-helper").join("helper.log")).unwrap();
+    let lines: Vec<&str> = contents.lines().collect();
+    assert_eq!(lines.len(), 2);
+    assert!(lines.iter().any(|l| l.ends_with("first")));
+    assert!(lines.iter().any(|l| l.ends_with("second")));
 
     fs::remove_dir_all(&dir).unwrap();
 }

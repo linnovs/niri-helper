@@ -12,7 +12,7 @@ pub async fn move_pinned(
     ws_id: u64,
     patterns: &[Regex],
     actions: &mut BufReader<UnixStream>,
-    logger: &mut Logger,
+    logger: &Logger,
 ) -> std::io::Result<()> {
     let Some(target) = state.workspaces.workspaces.get(&ws_id) else {
         return Ok(());

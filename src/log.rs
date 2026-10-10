@@ -3,6 +3,7 @@ use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use chrono::Local;
 
@@ -25,10 +26,15 @@ impl fmt::Display for Level {
     }
 }
 
-pub struct Logger {
-    path: PathBuf,
+struct Inner {
     file: File,
     size: u64,
+}
+
+#[derive(Clone)]
+pub struct Logger {
+    path: PathBuf,
+    inner: Arc<Mutex<Inner>>,
 }
 
 impl Logger {
@@ -39,47 +45,51 @@ impl Logger {
         }
         let size = fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
         let file = OpenOptions::new().create(true).append(true).open(&path)?;
-        Ok(Self { path, file, size })
+        Ok(Self {
+            path,
+            inner: Arc::new(Mutex::new(Inner { file, size })),
+        })
     }
 
-    pub fn log(&mut self, level: Level, args: fmt::Arguments<'_>) {
+    pub fn log(&self, level: Level, args: fmt::Arguments<'_>) {
         if let Err(e) = self.write(level, args) {
             eprintln!("niri-helper: failed to write log: {e}");
         }
     }
 
-    pub fn info(&mut self, args: fmt::Arguments<'_>) {
+    pub fn info(&self, args: fmt::Arguments<'_>) {
         self.log(Level::Info, args);
     }
 
-    pub fn warn(&mut self, args: fmt::Arguments<'_>) {
+    pub fn warn(&self, args: fmt::Arguments<'_>) {
         self.log(Level::Warn, args);
     }
 
-    pub fn error(&mut self, args: fmt::Arguments<'_>) {
+    pub fn error(&self, args: fmt::Arguments<'_>) {
         self.log(Level::Error, args);
     }
 
-    fn rotate(&mut self) -> io::Result<()> {
-        let mut rotated = self.path.clone().into_os_string();
-        rotated.push(".1");
-        fs::rename(&self.path, PathBuf::from(rotated))?;
-        self.file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&self.path)?;
-        self.size = 0;
+    fn write(&self, level: Level, args: fmt::Arguments<'_>) -> io::Result<()> {
+        let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S");
+        let line = format!("{timestamp} {level} {args}\n");
+        let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if inner.size > 0 && inner.size + line.len() as u64 > MAX_LOG_SIZE {
+            self.rotate(&mut inner)?;
+        }
+        inner.file.write_all(line.as_bytes())?;
+        inner.size += line.len() as u64;
         Ok(())
     }
 
-    fn write(&mut self, level: Level, args: fmt::Arguments<'_>) -> io::Result<()> {
-        let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S");
-        let line = format!("{timestamp} {level} {args}\n");
-        if self.size > 0 && self.size + line.len() as u64 > MAX_LOG_SIZE {
-            self.rotate()?;
-        }
-        self.file.write_all(line.as_bytes())?;
-        self.size += line.len() as u64;
+    fn rotate(&self, inner: &mut Inner) -> io::Result<()> {
+        let mut rotated = self.path.clone().into_os_string();
+        rotated.push(".1");
+        fs::rename(&self.path, PathBuf::from(rotated))?;
+        inner.file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)?;
+        inner.size = 0;
         Ok(())
     }
 }
