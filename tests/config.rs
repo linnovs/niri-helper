@@ -268,7 +268,7 @@ fn rules_parse_size_and_position() {
 
     let (x, y) = rule.position().unwrap().changes();
     assert_eq!(x, niri_ipc::PositionChange::SetFixed(100.0));
-    assert_eq!(y, niri_ipc::PositionChange::SetProportion(0.5));
+    assert_eq!(y, niri_ipc::PositionChange::SetProportion(50.0));
 
     fs::remove_dir_all(&dir).unwrap();
 }

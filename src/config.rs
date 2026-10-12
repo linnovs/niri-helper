@@ -63,7 +63,7 @@ impl<'de> serde::Deserialize<'de> for PositionValue {
             toml::Value::String(s) => {
                 if let Some(percent) = s.strip_suffix('%') {
                     let value: f64 = percent.trim().parse().map_err(D::Error::custom)?;
-                    Ok(PositionValue::Proportion(value / 100.0))
+                    Ok(PositionValue::Proportion(value))
                 } else {
                     let value: f64 = s.trim().parse().map_err(D::Error::custom)?;
                     Ok(PositionValue::Fixed(value))
