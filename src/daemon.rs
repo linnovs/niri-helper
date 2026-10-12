@@ -273,7 +273,6 @@ pub async fn run() -> std::io::Result<()> {
             break;
         }
         let event: Event = serde_json::from_str(&line)?;
-        println!("{event:?}");
         daemon.handle_event(event).await?;
     }
 
