@@ -14,8 +14,9 @@ applications.
 - **Float rules** — `rules` is an array of `{ app_id, title }` regex pairs; the
   daemon floats newly opened windows whose `app_id` **and** `title` both match.
 - **Scratchpad** — applications declared under `scratchpad.applications` live on
-  the `scratchpad.workspace` workspace. `scratch <name>` brings one to the
-  current workspace (or hides it back), spawning it on demand.
+  the `scratchpad.workspace` workspace, **tiled** while hidden. `scratch <name>`
+  brings one to the current workspace (moves it, then floats it, and focuses it),
+  or hides it back (moving and tiling it again).
 - **Logging** — daemon logs to `$XDG_CACHE_HOME/niri-helper/helper.log`, rotated
   to `helper.log.1` when it exceeds 1 MiB.
 

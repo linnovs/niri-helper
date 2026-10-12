@@ -25,9 +25,9 @@ Rust (edition 2024) daemon/CLI helper that drives the niri Wayland compositor ov
 
 ## Behavior (not obvious from filenames)
 - Subcommands: `daemon` (default, event-stream loop in `src/daemon.rs`) and `scratch <name>` (`src/scratch.rs` looks up `scratchpad.applications`).
-- `daemon` moves **floating** windows matching `pin.app_id` to the newly active workspace on their monitor (`focus: false`), and moves **newly opened** windows matching any scratchpad `app_id` to `scratchpad.workspace` (floating, no focus).
+- `daemon` moves **floating** windows matching `pin.app_id` to the newly active workspace on their monitor (`focus: false`), and moves **newly opened** windows matching any scratchpad `app_id` to `scratchpad.workspace` (tiled, no focus).
 - De-facto "new window" is `Event::WindowOpenedOrChanged` for an id absent from `EventStreamState` — that event also fires on updates, so gate on the id.
-- `scratch` toggles: window on current workspace => hide to scratchpad workspace; elsewhere => bring (move + float + focus); none => spawn `executable` via `Action::SpawnSh` and poll for the new window.
+- `scratch` toggles: window on current workspace => hide to scratchpad workspace (moved + tiled); elsewhere => bring (moved while tiled, then floated + focused); none => spawn `executable` via `Action::SpawnSh` and poll for the new window.
 
 ## niri IPC gotchas
 - After `Request::EventStream`, niri stops reading further requests on that socket — actions must use a **second** connection. The daemon opens two `ipc::connect()` sockets (`events` + `actions`).

@@ -50,7 +50,7 @@ async fn hide(
     .await?;
     action(
         socket,
-        Action::MoveWindowToFloating {
+        Action::MoveWindowToTiling {
             id: Some(window_id),
         },
     )

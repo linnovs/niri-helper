@@ -43,7 +43,7 @@ async fn move_new_scratchpad_window(
     .await?;
     action(
         actions,
-        Action::MoveWindowToFloating {
+        Action::MoveWindowToTiling {
             id: Some(window.id),
         },
     )
