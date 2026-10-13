@@ -66,6 +66,26 @@ pub fn matches(patterns: &[Regex], window: &Window) -> bool {
         .is_some_and(|a| patterns.iter().any(|p| p.is_match(a)))
 }
 
+#[doc(hidden)]
+pub fn refocus_target(
+    windows: &[Window],
+    workspace_id: u64,
+    pin_patterns: &[Regex],
+) -> Option<u64> {
+    let focused = windows.iter().find(|w| w.is_focused)?;
+    if !focused.is_floating {
+        return None;
+    }
+    if !matches(pin_patterns, focused) {
+        return None;
+    }
+    windows
+        .iter()
+        .filter(|w| w.workspace_id == Some(workspace_id) && !w.is_floating)
+        .max_by_key(|w| w.focus_timestamp.map(|t| (t.secs, t.nanos)))
+        .map(|w| w.id)
+}
+
 async fn focused_workspace(socket: &mut BufReader<UnixStream>) -> io::Result<u64> {
     match send(socket, Request::Workspaces).await? {
         Ok(Response::Workspaces(workspaces)) => workspaces
@@ -111,6 +131,16 @@ pub async fn run(name: String) -> io::Result<()> {
     if let Some(window) = windows.iter().find(|w| matches(&patterns, w)) {
         if window.workspace_id == Some(focused_ws) {
             hide(&mut socket, window.id, &workspace).await?;
+            let pin_patterns = config.app_id_patterns().map_err(|e| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("invalid pin.app_id regex: {e}"),
+                )
+            })?;
+            let windows = request_windows(&mut socket).await?;
+            if let Some(id) = refocus_target(&windows, focused_ws, &pin_patterns) {
+                action(&mut socket, Action::FocusWindow { id }).await?;
+            }
         } else {
             bring(&mut socket, window.id, focused_ws).await?;
         }
